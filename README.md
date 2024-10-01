@@ -6,3 +6,4 @@ At the moment it has very basic authentication and is functional. However I woul
 - Ability to create profiles
 - Some cryptography elements
 - Logout button on profile screen
+- 2FA
