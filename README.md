@@ -6,3 +6,5 @@ At the moment it has very basic authentication and is functional. However I woul
 - Some cryptography elements
 - 2FA
 - Data validation
+- Eliminate possible vulnerabilities such as SQL Injection, etc.
+- Add the ability to show the qr code in the app and store it in the database securely.
