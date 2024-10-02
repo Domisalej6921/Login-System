@@ -49,6 +49,9 @@ class LoginApp:
         self.profile_window.geometry("650x250")
         self.profile_window.title(f'Profile of {user[0]}')
 
+        self.logout_button = tk.Button(self.profile_window, text='Log out', command=self.__init__)
+        self.logout_button.pack()
+
         tk.Label(self.profile_window, text=f'Name: {user[2]}').pack()
         tk.Label(self.profile_window, text=f'Age: {user[3]}').pack()
         tk.Label(self.profile_window, text=f'E-Mail: {user[4]}').pack()
@@ -60,6 +63,9 @@ class LoginApp:
         self.create_profile_window = tk.Tk()
         self.create_profile_window.geometry("650x450")
         self.create_profile_window.title('Create Profile')
+
+        self.back_button = tk.Button(self.create_profile_window, text='Back', command=self.__init__)
+        self.back_button.pack()
 
         tk.Label(self.create_profile_window, text='Username').pack()
         self.create_username_entry = tk.Entry(self.create_profile_window)
