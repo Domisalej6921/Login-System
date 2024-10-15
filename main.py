@@ -27,7 +27,7 @@ class LoginApp:
         self.login_button = tk.Button(self.login_window, text='Login', command=lambda: self.login(key))
         self.login_button.pack()
 
-        self.create_button = tk.Button(self.login_window, text='Create Profile', command=self.create_profile)
+        self.create_button = tk.Button(self.login_window, text='Create Profile', command=lambda: self.create_profile())
         self.create_button.pack()
 
         self.login_window.mainloop()
@@ -45,9 +45,7 @@ class LoginApp:
         cursor.execute('SELECT * FROM users WHERE username = ? AND password = ?;', (username, password))
         user = cursor.fetchone()
 
-        if user:
-
-            #Add ability to login without 2FA if not enabled, i.e database boolean for each account
+        if user and user[5] == 1:
 
             #Make it so the qr code is saved in the database and can be displayed in the app.
 
@@ -58,14 +56,18 @@ class LoginApp:
 
             user_code = tk.simpledialog.askstring("2FA", "Enter 2FA Code: ")
 
-            if user_code and totp.verify(user_code):
+            int(user_code)
 
-                self.show_profile(user, key)
+            if totp.verify(user_code):
                 messagebox.showinfo('Success', 'Login Successful!')
+                self.show_profile(user, key)
             else:
                 messagebox.showerror('Login Failed', 'Invalid 2FA code')
+        elif user and user[5] == 0:
+            messagebox.showinfo('Success', 'Login Successful!')
+            self.show_profile(user, key)
         else:
-            messagebox.showerror('Login failed', 'Invalid username or password')
+            messagebox.showerror('Login failed', 'Invalid username, 2fa type or password')
     
     def show_profile(self, user, key):
         self.login_window.destroy()
@@ -73,7 +75,7 @@ class LoginApp:
         self.profile_window.geometry("650x250")
         self.profile_window.title(f'Profile of {user[0]}')
 
-        self.logout_button = tk.Button(self.profile_window, text='Log out', command=self.__init__)
+        self.logout_button = tk.Button(self.profile_window, text='Log out', command=self.logout)
         self.logout_button.pack()
 
         self.TwoFA_button = tk.Button(self.profile_window, text='Enable 2FA', command=lambda: self.initialise_2FA(key, user))
@@ -84,6 +86,10 @@ class LoginApp:
         tk.Label(self.profile_window, text=f'E-Mail: {user[4]}').pack()
 
         self.profile_window.mainloop()
+
+    def logout(self):
+        self.__init__
+        self.profile_window.destroy()
 
     def initialise_2FA(self, user, key):
         uri = pyotp.totp.TOTP(key).provisioning_uri(name=f"{user[0]}", issuer_name="Python LoginApp")
@@ -134,16 +140,20 @@ class LoginApp:
         cursor = conn.cursor()
 
         #Will add data validation logic within here
-
+        
         add_username = self.create_username_entry.get()
         add_password = self.password1_entry.get()
+        confirm_password = self.password2_entry.get()
         add_name = self.name_entry.get()
         add_age = self.age_entry.get()
         add_email = self.email_entry.get()
 
+        # Default two_fa state is false
+        two_fa = 0
+
         if True:
 
-            cursor.execute('INSERT INTO users (username, password, name, age, email) VALUES (?, ?, ?, ?, ?)', (add_username, add_password, add_name, add_age, add_email))
+            cursor.execute('INSERT INTO users (username, password, name, age, email, two_factor_auth) VALUES (?, ?, ?, ?, ?, ?)', (add_username, add_password, add_name, add_age, add_email, two_fa))
 
             messagebox.showinfo('Success', 'Account creation successful!')
             
