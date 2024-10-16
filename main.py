@@ -178,7 +178,7 @@ class LoginApp:
         create_profile_page_title = customtkinter.CTkLabel(master=frame, text="Create An Account", font=("Roboto", 24))
         create_profile_page_title.pack(pady=12, padx=10)
 
-        self.back_button = customtkinter.CTkButton(master=frame, text='Back', command=self.login_window)
+        self.back_button = customtkinter.CTkButton(master=frame, text='Back', command=self.create_profile_window.quit())
         self.back_button.pack(pady=12, padx=10)
 
         self.create_username_entry = customtkinter.CTkEntry(master=frame, placeholder_text="Username")
