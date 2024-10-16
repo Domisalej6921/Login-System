@@ -9,10 +9,11 @@ What I have implemented already:
 - Seperate account dashboard for each user.
 - 2FA.
 - A well designed, visually appealing GUI.
+- Data Validation
+- Password Hashing + Salting
 
 What features I would like to implement:
 
 - Some cryptography elements.
-- Data validation.
 - Eliminate possible vulnerabilities such as SQL Injection, etc.
 - Add the ability to show the qr code in the app and store it in the database securely.
