@@ -6,6 +6,8 @@ import base64
 import tkinter.simpledialog as simpledialog
 import pyotp
 import qrcode
+import re
+import bcrypt
 
 
 class LoginApp:
@@ -19,9 +21,11 @@ class LoginApp:
         key = base64.b32encode(key.encode())
         key = key.decode()
 
-        self.login_window(key)
+        salt = bcrypt.gensalt(rounds=12)
+
+        self.login_window(key, salt)
     
-    def login_window(self, key):
+    def login_window(self, key, salt):
         self.login_window = customtkinter.CTk()
         self.login_window.title('Login Application')
         self.login_window.geometry("650x350")
@@ -41,7 +45,7 @@ class LoginApp:
         self.login_button = customtkinter.CTkButton(master=frame, text='Login', command=lambda: self.login(key))
         self.login_button.pack(pady=12, padx=10)
 
-        self.create_button = customtkinter.CTkButton(master=frame, text='Create Profile', command=lambda: self.create_profile())
+        self.create_button = customtkinter.CTkButton(master=frame, text='Create Profile', command=lambda: self.create_profile(salt))
         self.create_button.pack(pady=12, padx=10)
 
         self.login_window.mainloop()
@@ -55,40 +59,51 @@ class LoginApp:
         password = self.password_entry.get().strip()
 
         #fetch user
-        cursor.execute('SELECT * FROM users WHERE username = ? AND password = ?;', (username, password))
+        cursor.execute('SELECT * FROM users WHERE username = ?;', (username,))
         user = cursor.fetchone()
 
-        #If user has enabled 2fa
-        if user and user[5] == 1:
+        #If user exists
+        if user:
+            hashed_password = user[1]
+            if bcrypt.checkpw(password.encode('utf-8'), hashed_password):
+                #If user has enabled 2fa
+                if user[5] == 1:
 
-            #Make it so the qr code is saved in the database and can be displayed in the app.
+                    #Make it so the qr code is saved in the database and can be displayed in the app.
 
-            totp = pyotp.TOTP(key, interval=30)
+                    totp = pyotp.TOTP(key, interval=30)
 
-            user_code = tk.simpledialog.askstring("2FA", "Enter 2FA Code: ")
+                    user_code = tk.simpledialog.askstring("2FA", "Enter 2FA Code: ")
 
-            #validate user input
-            try:
-                user_code = int(user_code)
-            except ValueError:
-                messagebox.showerror('Login Failed', 'Invalid code format. Please enter numbers only.')
-                exit()
+                    #validate user input
+                    try:
+                        user_code = int(user_code)
+                    except ValueError:
+                        messagebox.showerror('Login Failed', 'Invalid code format. Please enter numbers only.')
+                        exit()
 
-            #verify 2fa codes are the same
-            if totp.verify(user_code, valid_window=1):
-                messagebox.showinfo('Success', 'Login Successful!')
-                self.show_profile(user, key)
+                    #verify 2fa codes are the same
+                    if totp.verify(user_code, valid_window=1):
+                        messagebox.showinfo('Success', 'Login Successful!')
+                        self.show_profile(user, key)
+                    else:
+                        messagebox.showerror('Login Failed', 'Invalid 2FA code')
+            
+                #If user has not enabled 2fa
+                elif user[5] == 0:
+                    messagebox.showinfo('Success', 'Login Successful!')
+                    self.show_profile(user, key)
+                
+                else:
+                    messagebox.showerror('Login failed', 'Invalid 2FA type')
+
+            #Hashed password isn't in database
             else:
-                messagebox.showerror('Login Failed', 'Invalid 2FA code')
-        
-        #If user has not enabled 2fa
-        elif user and user[5] == 0:
-            messagebox.showinfo('Success', 'Login Successful!')
-            self.show_profile(user, key)
+                messagebox.showerror('Login failed', 'Password isn\'t on our system ')
         
         #If user has entered incorrect details
         else:
-            messagebox.showerror('Login failed', 'Invalid username, 2fa type or password')
+            messagebox.showerror('Login failed', 'User does not exist')
     
     def show_profile(self, user, key):
         self.login_window.quit()
@@ -151,7 +166,7 @@ class LoginApp:
         #Show Success Message
         messagebox.showinfo('Success', '2FA Disabled!')
     
-    def create_profile(self):
+    def create_profile(self, salt):
         self.login_window.quit()
         self.create_profile_window = customtkinter.CTk()
         self.create_profile_window.geometry("650x550")
@@ -184,17 +199,15 @@ class LoginApp:
         self.email_entry = customtkinter.CTkEntry(master=frame, placeholder_text="Email")
         self.email_entry.pack(pady=12, padx=10)
 
-        self.login_button = customtkinter.CTkButton(master=frame, text='Create', command=self.add_profile)
+        self.login_button = customtkinter.CTkButton(master=frame, text='Create', command=lambda: self.add_profile(salt))
         self.login_button.pack(pady=12, padx=10)
 
         self.create_profile_window.mainloop()
 
-    def add_profile(self):
+    def add_profile(self, salt):
 
         conn = sqlite3.connect('user_db.db')
         cursor = conn.cursor()
-
-        #Will add data validation logic within here
         
         add_username = self.create_username_entry.get()
         add_password = self.password1_entry.get()
@@ -206,19 +219,54 @@ class LoginApp:
         # Default two_fa state is false
         two_fa = 0
 
-        if True:
+        # Validate inputs
+        if not self.validate_username(add_username):
+            messagebox.showerror('Account creation failed', 'Invalid username format. Must be 3-20 characters and alphanumeric.')
+            return
+        if not self.validate_password(add_password):
+            messagebox.showerror('Account creation failed', 'Invalid password format. Must be at least 8 characters long and include letters and numbers.')
+            return
+        if add_password != confirm_password:
+            messagebox.showerror('Account creation failed', 'Passwords do not match!')
+            return
+        if not self.validate_name(add_name):
+            messagebox.showerror('Account creation failed', 'Invalid name format. Name must contain only letters.')
+            return
+        if not self.validate_age(add_age):
+            messagebox.showerror('Account creation failed', 'Invalid age format. Age must be a number between 1 and 120.')
+            return
+        if not self.validate_email(add_email):
+            messagebox.showerror('Account creation failed', 'Invalid email format.')
+            return
 
-            cursor.execute('INSERT INTO users (username, password, name, age, email, two_factor_auth) VALUES (?, ?, ?, ?, ?, ?)', (add_username, add_password, add_name, add_age, add_email, two_fa))
+        # Hash the password before saving it to the database
+        hashed_password = bcrypt.hashpw(add_password.encode('utf-8'), salt)
 
-            conn.commit()
-            conn.close()
+        cursor.execute('INSERT INTO users (username, password, name, age, email, two_factor_auth) VALUES (?, ?, ?, ?, ?, ?)', (add_username, hashed_password, add_name, add_age, add_email, two_fa))
 
-            messagebox.showinfo('Success', 'Account creation successful!')
-            
-            self.create_profile_window.destroy()
-            self.__init__()
-        else :
-            messagebox.showerror('Account creation failed', 'Invalid input')
+        conn.commit()
+        conn.close()
+
+        messagebox.showinfo('Success', 'Account creation successful!')
+        
+        self.create_profile_window.quit()
+
+    #Validation functions
+    def validate_username(self, username):
+        return bool(re.match(r'^[A-Za-z0-9]{3,20}$', username))
+    
+    def validate_password(self, password):
+        return len(password) >= 8 and re.search(r'[A-Za-z]', password) and re.search(r'[0-9]', password)
+    
+    def validate_name(self, name):
+        return bool(re.match(r'^[A-Za-z\s]+$', name))
+    
+    def validate_age(self, age):
+        return age.isdigit() and 1 <= int(age) <= 120
+    
+    def validate_email(self, email):
+        pattern = r'^[\w\.-]+@[\w\.-]+\.\w+$'
+        return bool(re.match(pattern, email))
 
 
 if __name__ == '__main__':
