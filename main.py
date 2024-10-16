@@ -1,8 +1,8 @@
 import sqlite3
 import tkinter as tk
 from tkinter import messagebox
+import base64
 import tkinter.simpledialog as simpledialog
-import time
 import pyotp
 import qrcode
 
@@ -15,6 +15,8 @@ class LoginApp:
         self.login_window.geometry("650x250")
 
         key = "LoginAppSecretKeyKeyKey"
+        key = base64.b32encode(key.encode())
+        key = key.decode()
 
         tk.Label(self.login_window, text='Username').pack()
         self.username_entry = tk.Entry(self.login_window)
@@ -34,8 +36,6 @@ class LoginApp:
     
     def login(self, key):
 
-        print(key)
-
         conn = sqlite3.connect('user_db.db')
         cursor = conn.cursor()
 
@@ -49,16 +49,17 @@ class LoginApp:
 
             #Make it so the qr code is saved in the database and can be displayed in the app.
 
-            totp = pyotp.TOTP(key, interval=30) #Fix key not generating correct code
-
-            current_code = totp.now()
-            print(f"Expected Code: {current_code}") 
+            totp = pyotp.TOTP(key, interval=30)
 
             user_code = tk.simpledialog.askstring("2FA", "Enter 2FA Code: ")
 
-            int(user_code)
+            try:
+                user_code = int(user_code)
+            except ValueError:
+                messagebox.showerror('Login Failed', 'Invalid code format. Please enter numbers only.')
+                exit()
 
-            if totp.verify(user_code):
+            if totp.verify(user_code, valid_window=1):
                 messagebox.showinfo('Success', 'Login Successful!')
                 self.show_profile(user, key)
             else:
@@ -81,6 +82,9 @@ class LoginApp:
         self.TwoFA_button = tk.Button(self.profile_window, text='Enable 2FA', command=lambda: self.initialise_2FA(key, user))
         self.TwoFA_button.pack()
 
+        self.Disable_TwoFA_button = tk.Button(self.profile_window, text='Disable 2FA', command=lambda: self.disable_2fa(user))
+        self.Disable_TwoFA_button.pack()
+
         tk.Label(self.profile_window, text=f'Name: {user[2]}').pack()
         tk.Label(self.profile_window, text=f'Age: {user[3]}').pack()
         tk.Label(self.profile_window, text=f'E-Mail: {user[4]}').pack()
@@ -91,10 +95,36 @@ class LoginApp:
         self.__init__
         self.profile_window.destroy()
 
-    def initialise_2FA(self, user, key):
+    def initialise_2FA(self, key, user):
+
+        #Creates qr code stored locally for user to enable 2fa
         uri = pyotp.totp.TOTP(key).provisioning_uri(name=f"{user[0]}", issuer_name="Python LoginApp")
         qrcode.make(uri).save(f"{user[0]}_qrcode.png")
-        messagebox.showinfo('Success', '2FA Enabled!')
+
+        #Updating the 2fa column in the user table
+        conn = sqlite3.connect('user_db.db')
+        cursor = conn.cursor()
+
+        cursor.execute('UPDATE users SET two_factor_auth = ? WHERE username = ?', (1, user[0]))
+        
+        conn.commit()
+        conn.close()
+
+        #Show Success Message
+        messagebox.showinfo('Success', '2FA Enabled!\nA QR code is stored locally on your computer.\nUse this for setup with your authenticator app.')
+
+    def disable_2fa(self, user):
+        #Reverting the 2fa column in the user table
+        conn = sqlite3.connect('user_db.db')
+        cursor = conn.cursor()
+
+        cursor.execute('UPDATE users SET two_factor_auth = ? WHERE username = ?', (0, user[0]))
+        
+        conn.commit()
+        conn.close()
+
+        #Show Success Message
+        messagebox.showinfo('Success', '2FA Disabled!')
     
     def create_profile(self):
         self.login_window.destroy()
@@ -114,7 +144,7 @@ class LoginApp:
         self.password1_entry.pack()
 
         tk.Label(self.create_profile_window, text='Confirm Password').pack()
-        self.password2_entry = tk.Entry(self.create_profile_window)
+        self.password2_entry = tk.Entry(self.create_profile_window, show='*')
         self.password2_entry.pack()
 
         tk.Label(self.create_profile_window, text='Name').pack()
@@ -155,16 +185,15 @@ class LoginApp:
 
             cursor.execute('INSERT INTO users (username, password, name, age, email, two_factor_auth) VALUES (?, ?, ?, ?, ?, ?)', (add_username, add_password, add_name, add_age, add_email, two_fa))
 
+            conn.commit()
+            conn.close()
+
             messagebox.showinfo('Success', 'Account creation successful!')
             
             self.create_profile_window.destroy()
             self.__init__()
         else :
             messagebox.showerror('Account creation failed', 'Invalid input')
-        
-        conn.commit()
-        conn.close()
-
 
 
 if __name__ == '__main__':
