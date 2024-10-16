@@ -1,5 +1,6 @@
 import sqlite3
 import tkinter as tk
+import customtkinter
 from tkinter import messagebox
 import base64
 import tkinter.simpledialog as simpledialog
@@ -10,27 +11,38 @@ import qrcode
 class LoginApp:
 
     def __init__(self):
-        self.login_window = tk.Tk()
-        self.login_window.title('Login Application')
-        self.login_window.geometry("650x250")
+
+        customtkinter.set_appearance_mode("dark")
+        customtkinter.set_default_color_theme("dark-blue")
 
         key = "LoginAppSecretKeyKeyKey"
         key = base64.b32encode(key.encode())
         key = key.decode()
 
-        tk.Label(self.login_window, text='Username').pack()
-        self.username_entry = tk.Entry(self.login_window)
-        self.username_entry.pack()
+        self.login_window(key)
+    
+    def login_window(self, key):
+        self.login_window = customtkinter.CTk()
+        self.login_window.title('Login Application')
+        self.login_window.geometry("650x350")
 
-        tk.Label(self.login_window, text='Password').pack()
-        self.password_entry = tk.Entry(self.login_window, show='*')
-        self.password_entry.pack()
+        frame = customtkinter.CTkFrame(master=self.login_window)
+        frame.pack(pady=20, padx=60, fill="both", expand=True)
 
-        self.login_button = tk.Button(self.login_window, text='Login', command=lambda: self.login(key))
-        self.login_button.pack()
+        title_label = customtkinter.CTkLabel(master=frame, text="Login Application", font=("Roboto", 24))
+        title_label.pack(pady=12, padx=10)
 
-        self.create_button = tk.Button(self.login_window, text='Create Profile', command=lambda: self.create_profile())
-        self.create_button.pack()
+        self.username_entry = customtkinter.CTkEntry(master=frame, placeholder_text="Username")
+        self.username_entry.pack(pady=12, padx=10)
+
+        self.password_entry = customtkinter.CTkEntry(master=frame, placeholder_text="Password", show='*')
+        self.password_entry.pack(pady=12, padx=10)
+
+        self.login_button = customtkinter.CTkButton(master=frame, text='Login', command=lambda: self.login(key))
+        self.login_button.pack(pady=12, padx=10)
+
+        self.create_button = customtkinter.CTkButton(master=frame, text='Create Profile', command=lambda: self.create_profile())
+        self.create_button.pack(pady=12, padx=10)
 
         self.login_window.mainloop()
     
@@ -42,9 +54,11 @@ class LoginApp:
         username = self.username_entry.get().strip()
         password = self.password_entry.get().strip()
 
+        #fetch user
         cursor.execute('SELECT * FROM users WHERE username = ? AND password = ?;', (username, password))
         user = cursor.fetchone()
 
+        #If user has enabled 2fa
         if user and user[5] == 1:
 
             #Make it so the qr code is saved in the database and can be displayed in the app.
@@ -53,47 +67,58 @@ class LoginApp:
 
             user_code = tk.simpledialog.askstring("2FA", "Enter 2FA Code: ")
 
+            #validate user input
             try:
                 user_code = int(user_code)
             except ValueError:
                 messagebox.showerror('Login Failed', 'Invalid code format. Please enter numbers only.')
                 exit()
 
+            #verify 2fa codes are the same
             if totp.verify(user_code, valid_window=1):
                 messagebox.showinfo('Success', 'Login Successful!')
                 self.show_profile(user, key)
             else:
                 messagebox.showerror('Login Failed', 'Invalid 2FA code')
+        
+        #If user has not enabled 2fa
         elif user and user[5] == 0:
             messagebox.showinfo('Success', 'Login Successful!')
             self.show_profile(user, key)
+        
+        #If user has entered incorrect details
         else:
             messagebox.showerror('Login failed', 'Invalid username, 2fa type or password')
     
     def show_profile(self, user, key):
-        self.login_window.destroy()
-        self.profile_window = tk.Tk()
-        self.profile_window.geometry("650x250")
+        self.login_window.quit()
+        self.profile_window = customtkinter.CTk()
+        self.profile_window.geometry("650x450")
         self.profile_window.title(f'Profile of {user[0]}')
 
-        self.logout_button = tk.Button(self.profile_window, text='Log out', command=self.logout)
-        self.logout_button.pack()
+        frame = customtkinter.CTkFrame(master=self.profile_window)
+        frame.pack(pady=20, padx=60, fill="both", expand=True)
 
-        self.TwoFA_button = tk.Button(self.profile_window, text='Enable 2FA', command=lambda: self.initialise_2FA(key, user))
-        self.TwoFA_button.pack()
+        profile_page_title = customtkinter.CTkLabel(master=frame, text='Account Dashboard', font=("Roboto", 24))
+        profile_page_title.pack(pady=12, padx=10)
 
-        self.Disable_TwoFA_button = tk.Button(self.profile_window, text='Disable 2FA', command=lambda: self.disable_2fa(user))
-        self.Disable_TwoFA_button.pack()
+        self.logout_button = customtkinter.CTkButton(master=frame, text='Log out', command=self.logout)
+        self.logout_button.pack(pady=12, padx=10)
 
-        tk.Label(self.profile_window, text=f'Name: {user[2]}').pack()
-        tk.Label(self.profile_window, text=f'Age: {user[3]}').pack()
-        tk.Label(self.profile_window, text=f'E-Mail: {user[4]}').pack()
+        self.TwoFA_button = customtkinter.CTkButton(master=frame, text='Enable 2FA', command=lambda: self.initialise_2FA(key, user))
+        self.TwoFA_button.pack(pady=12, padx=10)
+
+        self.Disable_TwoFA_button = customtkinter.CTkButton(master=frame, text='Disable 2FA', command=lambda: self.disable_2fa(user))
+        self.Disable_TwoFA_button.pack(pady=12, padx=10)
+
+        customtkinter.CTkLabel(master=frame, text=f'Name: {user[2]}').pack(pady=12, padx=10)
+        customtkinter.CTkLabel(master=frame, text=f'Age: {user[3]}').pack(pady=12, padx=10)
+        customtkinter.CTkLabel(master=frame, text=f'E-Mail: {user[4]}').pack(pady=12, padx=10)
 
         self.profile_window.mainloop()
 
     def logout(self):
-        self.__init__
-        self.profile_window.destroy()
+        self.profile_window.quit()
 
     def initialise_2FA(self, key, user):
 
@@ -127,40 +152,40 @@ class LoginApp:
         messagebox.showinfo('Success', '2FA Disabled!')
     
     def create_profile(self):
-        self.login_window.destroy()
-        self.create_profile_window = tk.Tk()
-        self.create_profile_window.geometry("650x450")
+        self.login_window.quit()
+        self.create_profile_window = customtkinter.CTk()
+        self.create_profile_window.geometry("650x550")
         self.create_profile_window.title('Create Profile')
 
-        self.back_button = tk.Button(self.create_profile_window, text='Back', command=self.__init__)
-        self.back_button.pack()
+        frame = customtkinter.CTkFrame(master=self.create_profile_window)
+        frame.pack(pady=20, padx=60, fill="both", expand=True)
 
-        tk.Label(self.create_profile_window, text='Username').pack()
-        self.create_username_entry = tk.Entry(self.create_profile_window)
-        self.create_username_entry.pack()
+        create_profile_page_title = customtkinter.CTkLabel(master=frame, text="Create An Account", font=("Roboto", 24))
+        create_profile_page_title.pack(pady=12, padx=10)
 
-        tk.Label(self.create_profile_window, text='Password').pack()
-        self.password1_entry = tk.Entry(self.create_profile_window, show='*')
-        self.password1_entry.pack()
+        self.back_button = customtkinter.CTkButton(master=frame, text='Back', command=self.login_window)
+        self.back_button.pack(pady=12, padx=10)
 
-        tk.Label(self.create_profile_window, text='Confirm Password').pack()
-        self.password2_entry = tk.Entry(self.create_profile_window, show='*')
-        self.password2_entry.pack()
+        self.create_username_entry = customtkinter.CTkEntry(master=frame, placeholder_text="Username")
+        self.create_username_entry.pack(pady=12, padx=10)
 
-        tk.Label(self.create_profile_window, text='Name').pack()
-        self.name_entry = tk.Entry(self.create_profile_window)
-        self.name_entry.pack()
+        self.password1_entry = customtkinter.CTkEntry(master=frame, placeholder_text="Password", show='*')
+        self.password1_entry.pack(pady=12, padx=10)
 
-        tk.Label(self.create_profile_window, text='Age').pack()
-        self.age_entry = tk.Entry(self.create_profile_window)
-        self.age_entry.pack()
+        self.password2_entry = customtkinter.CTkEntry(master=frame, placeholder_text="Confirm Password", show='*')
+        self.password2_entry.pack(pady=12, padx=10)
 
-        tk.Label(self.create_profile_window, text='Email').pack()
-        self.email_entry = tk.Entry(self.create_profile_window)
-        self.email_entry.pack()
+        self.name_entry = customtkinter.CTkEntry(master=frame, placeholder_text="Name")
+        self.name_entry.pack(pady=12, padx=10)
 
-        self.login_button = tk.Button(self.create_profile_window, text='Create', command=self.add_profile)
-        self.login_button.pack()
+        self.age_entry = customtkinter.CTkEntry(master=frame, placeholder_text="Age")
+        self.age_entry.pack(pady=12, padx=10)
+
+        self.email_entry = customtkinter.CTkEntry(master=frame, placeholder_text="Email")
+        self.email_entry.pack(pady=12, padx=10)
+
+        self.login_button = customtkinter.CTkButton(master=frame, text='Create', command=self.add_profile)
+        self.login_button.pack(pady=12, padx=10)
 
         self.create_profile_window.mainloop()
 
